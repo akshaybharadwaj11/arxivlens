@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential libpq-dev poppler-utils \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml .
+RUN pip install --upgrade pip && \
+    pip install google-cloud-storage google-cloud-pubsub feedparser httpx \
+                pydantic pydantic-settings structlog Pillow \
+                psycopg[binary,pool] marker-pdf \
+                google-cloud-aiplatform vertexai
+
+COPY arxivlens ./arxivlens
+COPY ingestion ./ingestion
+COPY embedding ./embedding
+
+# Default: parser subscriber. Override with --command for crawler/embedder.
+CMD ["python", "-m", "ingestion.parser", "--subscribe"]

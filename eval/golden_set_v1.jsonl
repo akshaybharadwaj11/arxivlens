@@ -1,0 +1,12 @@
+{"query": "What is FlashAttention and what speedup does it provide?", "query_type": "factoid", "gold_paper_ids": ["2205.14135"], "difficulty": "easy"}
+{"query": "How does LoRA reduce the number of trainable parameters in fine-tuning?", "query_type": "factoid", "gold_paper_ids": ["2106.09685"], "difficulty": "easy"}
+{"query": "Compare the performance of Llama-3 and Mistral 7B on MMLU.", "query_type": "table_grounded", "gold_paper_ids": ["2407.21783"], "difficulty": "medium"}
+{"query": "What does the attention pattern visualization in BERT show across layers?", "query_type": "figure_grounded", "gold_paper_ids": ["1906.04341"], "difficulty": "medium"}
+{"query": "Which papers extend FlashAttention with support for variable sequence lengths?", "query_type": "multi_hop", "gold_paper_ids": ["2307.08691"], "difficulty": "hard"}
+{"query": "How does RLHF use a reward model trained on human preferences?", "query_type": "factoid", "gold_paper_ids": ["2203.02155"], "difficulty": "easy"}
+{"query": "What architectural changes did Llama-2 make over Llama-1?", "query_type": "factoid", "gold_paper_ids": ["2307.09288"], "difficulty": "medium"}
+{"query": "Show me ablation tables for chain-of-thought prompting effectiveness.", "query_type": "table_grounded", "gold_paper_ids": ["2201.11903"], "difficulty": "medium"}
+{"query": "What is the loss curve shown for DPO training?", "query_type": "figure_grounded", "gold_paper_ids": ["2305.18290"], "difficulty": "medium"}
+{"query": "Find papers that improve RAG faithfulness through citation verification.", "query_type": "multi_hop", "gold_paper_ids": [], "difficulty": "hard"}
+{"query": "What is the weather in Boston today?", "query_type": "out_of_scope", "gold_paper_ids": [], "difficulty": "easy"}
+{"query": "Write me a poem about machine learning.", "query_type": "out_of_scope", "gold_paper_ids": [], "difficulty": "easy"}

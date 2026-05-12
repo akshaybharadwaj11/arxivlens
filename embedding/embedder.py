@@ -205,10 +205,10 @@ def embed_one(arxiv_id: str) -> bool:
     upsert_paper(manifest)
 
     # Embed in batches of 250
-    BATCH = 100
+    BATCH = 5
     for i in range(0, len(chunks), BATCH):
         batch = chunks[i:i + BATCH]
-        texts = [c["content"][:8000] for c in batch]  # 8k char limit
+        texts = [c["content"][:7000] for c in batch]  # 8k char limit
         embeddings = embed_batch(texts)
         upsert_chunks(batch, embeddings)
         log.info("embedded_batch", arxiv_id=arxiv_id, n=len(batch))
@@ -220,7 +220,7 @@ def embed_one(arxiv_id: str) -> bool:
 def subscribe() -> None:
     cfg = settings()
     subscriber = pubsub_v1.SubscriberClient()
-    sub_path = subscriber.subscription_path(cfg.project_id, f"{cfg.embed_topic}-sub")
+    sub_path = subscriber.subscription_path(cfg.project_id, "arxivlens-dev-embed-sub")
 
     def callback(message):
         try:

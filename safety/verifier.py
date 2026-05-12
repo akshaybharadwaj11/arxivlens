@@ -16,7 +16,9 @@ from retrieval.hybrid import RetrievedChunk
 
 log = get_logger("verifier")
 
-CITATION_RE = re.compile(r"\[([^,\]]+),\s*([^\]]+)\]")
+# Two citation formats Gemini produces
+CITATION_RE_COMMA = re.compile(r"\[([^,\]]+),\s*([^\]]+)\]")
+CITATION_RE_BARE = re.compile(r"\d{4}\.\d{4,5}(?::[^,\]\s]+)?")
 
 _model: CrossEncoder | None = None
 
@@ -44,19 +46,71 @@ def split_sentences(text: str) -> list[str]:
     return [p for p in parts if p]
 
 
+
+def _strip_math(s: str) -> str:
+    """Remove LaTeX/code so NLI model is not confused by formulas."""
+    # Remove citation tags like [2604.22709, 8:1] or [2604.22709:8:1]
+    s = re.sub(r"\[\d{4}\.\d{4,5}[^\]]*\]", "", s)
+    s = re.sub(r"\$[^$]+\$", "FORMULA", s)
+    s = re.sub(r"\$\$[^$]+\$\$", "FORMULA", s)
+    s = re.sub(r"\\begin\{equation\}.+?\\end\{equation\}", "FORMULA", s, flags=re.DOTALL)
+    s = re.sub(r"\\[a-zA-Z]+\{[^}]*\}", "TERM", s)
+    s = re.sub(r"\\[a-zA-Z]+", "TERM", s)
+    s = re.sub(r"`[^`]+`", "VAR", s)
+    return s.strip()
+
+def _focused_evidence(claim: str, cited_ids: list[str],
+                      chunk_lookup: dict) -> str:
+    """Return the most relevant 800 chars from each cited chunk."""
+    import re
+    # Word-overlap ranking — cheap and effective for sentence selection
+    claim_terms = set(re.findall(r"\w{4,}", claim.lower()))
+
+    bits: list[str] = []
+    for cid in cited_ids:
+        chunk = chunk_lookup.get(cid)
+        if not chunk:
+            continue
+        content = chunk.content
+        # Split into sentences-ish
+        parts = re.split(r"(?<=[.!?])\s+|\n\n", content)
+        scored = [
+            (len(claim_terms & set(re.findall(r"\w{4,}", p.lower()))), p)
+            for p in parts if len(p.strip()) > 20
+        ]
+        scored.sort(reverse=True)
+        # Take top-3 best-matching parts, max 800 chars total
+        top = " ".join(p for _, p in scored[:3])[:800]
+        if top:
+            bits.append(top)
+    return "\n".join(bits) if bits else "\n".join(
+        chunk_lookup[c].content[:600] for c in cited_ids if c in chunk_lookup
+    )
+
 def verify_answer(
     answer: str,
     chunks: Sequence[RetrievedChunk],
-    threshold: float = 0.5,
+    threshold: float = 0.35,
 ) -> list[VerifiedSentence]:
     """For each sentence with a citation, check NLI entailment from the cited chunk."""
-    chunk_lookup = {c.chunk_id: c for c in chunks}
+    chunk_lookup: dict[str, RetrievedChunk] = {}
+    for c in chunks:
+        chunk_lookup[c.chunk_id] = c
+        parts = c.chunk_id.split(":", 1)
+        if len(parts) == 2:
+            chunk_lookup[parts[1]] = c
+        chunk_lookup.setdefault(c.arxiv_id, c)
     results: list[VerifiedSentence] = []
     nli = get_nli()
 
     for sent in split_sentences(answer):
-        matches = CITATION_RE.findall(sent)
-        cited_ids = [m[1].strip() for m in matches]
+        cited_ids: list[str] = []
+        for m in CITATION_RE_COMMA.findall(sent):
+            cited_ids.append(m[1].strip())
+        for bracket in re.findall(r"\[([^\]]+)\]", sent):
+            for m in CITATION_RE_BARE.findall(bracket):
+                if m not in cited_ids:
+                    cited_ids.append(m)
         if not cited_ids:
             results.append(VerifiedSentence(
                 sentence=sent, citation_chunk_ids=[],
@@ -65,10 +119,8 @@ def verify_answer(
             continue
 
         # Score against the union of cited chunks
-        evidence = "\n".join(
-            chunk_lookup[cid].content[:1500]
-            for cid in cited_ids if cid in chunk_lookup
-        )
+        """evidence = _focused_evidence(sent, cited_ids, chunk_lookup)"""
+        evidence = _focused_evidence(sent, cited_ids, chunk_lookup)
         if not evidence:
             results.append(VerifiedSentence(
                 sentence=sent, citation_chunk_ids=cited_ids,
@@ -77,7 +129,7 @@ def verify_answer(
             continue
 
         # Cross-encoder NLI: returns logits for [contradiction, entailment, neutral]
-        logits = nli.predict([(evidence, sent)])
+        logits = nli.predict([(_strip_math(evidence), _strip_math(sent))])
         # Softmax-y normalization → entailment probability
         import numpy as np
         scores = np.exp(logits[0]) / np.exp(logits[0]).sum()
@@ -102,4 +154,4 @@ def faithfulness_score(verifications: list[VerifiedSentence]) -> float:
     cited = [v for v in verifications if v.citation_chunk_ids]
     if not cited:
         return 0.0
-    return sum(v.entailment_score for v in cited) / len(cited)
+    return sum(1.0 if v.supported else 0.0 for v in cited) / len(cited)

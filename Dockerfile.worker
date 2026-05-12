@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pyproject.toml .
 RUN pip install --upgrade pip && \
     pip install google-cloud-storage google-cloud-pubsub feedparser httpx \
-                pydantic pydantic-settings structlog Pillow \
+                pydantic pydantic-settings structlog Pillow pypdf \
                 psycopg[binary,pool] marker-pdf \
                 google-cloud-aiplatform vertexai
 
@@ -18,5 +18,22 @@ COPY arxivlens ./arxivlens
 COPY ingestion ./ingestion
 COPY embedding ./embedding
 
-# Default: parser subscriber. Override with --command for crawler/embedder.
-CMD ["python", "-m", "ingestion.parser", "--subscribe"]
+# Pre-download Marker models at build time so cold starts don't time out
+# and so we don't pay download bandwidth on every Cloud Run job execution.
+ENV TORCH_DEVICE=cpu
+ENV CUDA_VISIBLE_DEVICES=""
+ENV HF_HUB_DOWNLOAD_TIMEOUT=600
+RUN python -c "from marker.models import create_model_dict; create_model_dict()"
+
+# Bound Marker's memory by capping batch sizes
+ENV RECOGNITION_BATCH_SIZE=2
+ENV DETECTOR_BATCH_SIZE=2
+ENV LAYOUT_BATCH_SIZE=2
+ENV ORDER_BATCH_SIZE=2
+ENV TEXIFY_BATCH_SIZE=2
+ENV PYTORCH_NO_CUDA_MEMORY_CACHING=1
+# Cap PDFs to 50 pages (overrides via env if needed)
+ENV MAX_PDF_PAGES=50
+
+# Default: pull 5 papers from queue, then exit. Cloud Run schedulers re-fire as needed.
+CMD ["python", "-m", "ingestion.parser", "--pull", "--max-papers", "5"]

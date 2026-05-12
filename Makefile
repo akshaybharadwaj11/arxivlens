@@ -49,11 +49,11 @@ cost: ## Show month-to-date GCP spend
 # ----- Build + deploy -----------------------------------------------------------
 .PHONY: build-api
 build-api: ## Build + push API image
-	gcloud builds submit --tag $(REGISTRY)/api:latest -f Dockerfile.api .
+	gcloud builds submit --config cloudbuild-api.yaml --substitutions=_IMAGE=$(REGISTRY)/api:latest .
 
 .PHONY: build-worker
 build-worker: ## Build + push worker image (parser/embedder)
-	gcloud builds submit --tag $(REGISTRY)/worker:latest -f Dockerfile.worker .
+	gcloud builds submit --config cloudbuild-worker.yaml --substitutions=_IMAGE=$(REGISTRY)/worker:latest .
 
 .PHONY: deploy-api
 deploy-api: build-api ## Deploy API to Cloud Run

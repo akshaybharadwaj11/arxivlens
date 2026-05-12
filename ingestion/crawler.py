@@ -24,7 +24,7 @@ from arxivlens.logging import get_logger, setup_logging
 setup_logging()
 log = get_logger("crawler")
 
-ARXIV_API = "http://export.arxiv.org/api/query"
+ARXIV_API = "https://export.arxiv.org/api/query"
 
 
 def fetch_arxiv_batch(
@@ -41,7 +41,7 @@ def fetch_arxiv_batch(
         "sortBy": "submittedDate",
         "sortOrder": "descending",
     }
-    r = httpx.get(ARXIV_API, params=params, timeout=30.0)
+    r = httpx.get(ARXIV_API, params=params, timeout=30.0, follow_redirects=True)
     r.raise_for_status()
     feed = feedparser.parse(r.text)
     papers = []

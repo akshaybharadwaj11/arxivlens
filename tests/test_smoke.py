@@ -1,7 +1,8 @@
 """Smoke tests that don't require GCP."""
 
 from safety.input_guard import check_input
-from safety.verifier import CITATION_RE_COMMA, CITATION_RE_BARE, split_sentences
+from safety.verifier import CITATION_RE_BARE, CITATION_RE_COMMA, split_sentences
+
 
 def test_input_guard_empty():
     r = check_input("")
@@ -24,6 +25,7 @@ def test_split_sentences():
     parts = split_sentences(text)
     assert len(parts) == 3
 
+
 def test_citation_regex_comma():
     sent = "FlashAttention achieves 2x speedup [2205.14135, 2205.14135:3:0]."
     matches = CITATION_RE_COMMA.findall(sent)
@@ -37,6 +39,7 @@ def test_citation_regex_bare():
     sent = "FlashAttention achieves 2x speedup [2205.14135:3:0]."
     # Find content inside brackets, then extract chunk ids
     import re
+
     inside = re.findall(r"\[([^\]]+)\]", sent)
     assert len(inside) == 1
     ids = CITATION_RE_BARE.findall(inside[0])

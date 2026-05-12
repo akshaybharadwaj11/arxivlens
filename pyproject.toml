@@ -20,12 +20,15 @@ dependencies = [
     "structlog>=24.4.0",
     "sentence-transformers>=3.2.0",
     "numpy>=1.26.0",
-    "marker-pdf>=0.3.0",
     "Pillow>=10.4.0",
     "opentelemetry-api>=1.27.0",
     "opentelemetry-sdk>=1.27.0",
     "opentelemetry-instrumentation-fastapi>=0.48b0",
     "opentelemetry-exporter-gcp-trace>=1.7.0",
+]
+
+parser = [
+    "marker-pdf>=0.3.0",
 ]
 
 [project.optional-dependencies]

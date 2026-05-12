@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from arxivlens.config import settings
 
 JAILBREAK_PATTERNS = [
-    r"ignore (all |previous |prior )?instructions",
+    r"ignore\s+(all\s+|previous\s+|prior\s+|the\s+|earlier\s+)*instructions",
     r"you are now",
     r"pretend (to be|you are)",
     r"system prompt",

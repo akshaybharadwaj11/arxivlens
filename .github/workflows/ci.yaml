@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest -xvs
+
+  eval-gate:
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - run: pip install -e ".[dev]"
+
+      - name: Run eval on 50-question subset
+        env:
+          PROJECT_ID:    ${{ secrets.GCP_PROJECT_ID }}
+          DB_URL:        ${{ secrets.DB_URL }}
+          RAW_BUCKET:    ${{ secrets.RAW_BUCKET }}
+          PARSED_BUCKET: ${{ secrets.PARSED_BUCKET }}
+          REGION:        us-central1
+          ENV:           dev
+        run: |
+          head -50 eval/golden_set_v1.jsonl > eval/_subset.jsonl
+          python -m eval.run_eval --golden eval/_subset.jsonl --out eval/results.json
+
+      - name: Compare vs baseline
+        run: |
+          if [[ -f eval/baseline.json ]]; then
+            python -m eval.gate --current eval/results.json --baseline eval/baseline.json
+          else
+            echo "No baseline yet — commit eval/baseline.json to activate the gate."
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: eval/results.json

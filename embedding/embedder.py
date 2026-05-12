@@ -11,10 +11,9 @@ import argparse
 import hashlib
 import json
 import sys
-from typing import Iterator
+from collections.abc import Iterator
 
 from google.cloud import aiplatform, pubsub_v1, storage
-from google.cloud.aiplatform.gapic.schema import predict
 from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
 
 from arxivlens.config import settings
@@ -154,7 +153,7 @@ def upsert_paper(manifest: dict) -> None:
 
 def upsert_chunks(chunks: list[dict], embeddings: list[list[float]]) -> None:
     rows = []
-    for ch, emb in zip(chunks, embeddings):
+    for ch, emb in zip(chunks, embeddings, strict=False):
         ch_hash = hashlib.sha256(ch["content"].encode()).hexdigest()
         rows.append((
             ch["chunk_id"],

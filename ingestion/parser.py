@@ -21,7 +21,6 @@ import json
 import os
 import re
 import sys
-import time
 from typing import Any
 
 from google.cloud import pubsub_v1, storage
@@ -123,7 +122,7 @@ def _extract_tables(markdown: str) -> list[dict]:
     )
     for i, m in enumerate(table_pattern.finditer(markdown)):
         block = m.group(1)
-        lines = [l for l in block.strip().split("\n") if l.strip()]
+        lines = [line for line in block.strip().split("\n") if line.strip()]
         if len(lines) < 3:
             continue
         headers = [h.strip() for h in lines[0].strip("|").split("|")]
@@ -173,7 +172,7 @@ def _parse_pdf_with_marker(pdf_bytes: bytes, arxiv_id: str, parsed_bucket) -> di
 
         # Persist figures
         figures = []
-        for idx, (fname, pil_img) in enumerate(images.items(), start=1):
+        for idx, (_fname, pil_img) in enumerate(images.items(), start=1):
             png_buf = io.BytesIO()
             pil_img.save(png_buf, format="PNG", optimize=True)
             fig_path = f"figures/{arxiv_id}/fig_{idx}.png"

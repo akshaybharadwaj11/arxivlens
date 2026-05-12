@@ -15,7 +15,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from arxivlens.db import conn
 from arxivlens.logging import get_logger, setup_logging
@@ -23,7 +23,7 @@ from generation.generator import generate_stream
 from retrieval.hybrid import hybrid_search
 from retrieval.reranker import rerank
 from safety.input_guard import check_input
-from safety.verifier import verify_answer, faithfulness_score
+from safety.verifier import faithfulness_score, verify_answer
 
 setup_logging()
 log = get_logger("api")

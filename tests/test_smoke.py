@@ -1,7 +1,6 @@
 """Smoke tests that don't require GCP."""
-import pytest
 from safety.input_guard import check_input
-from safety.verifier import split_sentences, CITATION_RE
+from safety.verifier import CITATION_RE, split_sentences
 
 
 def test_input_guard_empty():

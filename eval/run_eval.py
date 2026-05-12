@@ -11,17 +11,15 @@ Produces:
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 import math
-import time
 from pathlib import Path
 
 from arxivlens.logging import get_logger, setup_logging
 from generation.generator import generate
 from retrieval.hybrid import hybrid_search
 from retrieval.reranker import rerank
-from safety.verifier import verify_answer, faithfulness_score
+from safety.verifier import faithfulness_score, verify_answer
 
 setup_logging()
 log = get_logger("eval")
@@ -53,7 +51,7 @@ def ndcg(retrieved_ids: list[str], gold_ids: list[str], k: int = 10) -> float:
 
 
 def evaluate(golden_path: Path, top_k: int = 10) -> dict:
-    items = [json.loads(l) for l in golden_path.read_text().splitlines() if l.strip()]
+    items = [json.loads(line) for line in golden_path.read_text().splitlines() if line.strip()]
     log.info("loaded_golden", n=len(items))
 
     per_item_metrics = []

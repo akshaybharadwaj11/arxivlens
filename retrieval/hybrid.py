@@ -8,11 +8,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from vertexai.language_models import TextEmbeddingInput
+
 from arxivlens.config import settings
 from arxivlens.db import conn
 from arxivlens.logging import get_logger
 from embedding.embedder import get_model
-from vertexai.language_models import TextEmbeddingInput
 
 log = get_logger("retriever")
 

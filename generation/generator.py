@@ -6,10 +6,10 @@ Locally, ADC comes from `gcloud auth application-default login`.
 """
 from __future__ import annotations
 
-from typing import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Sequence
 
 import vertexai
-from vertexai.generative_models import GenerativeModel, GenerationConfig
+from vertexai.generative_models import GenerationConfig, GenerativeModel
 
 from arxivlens.config import settings
 from arxivlens.logging import get_logger

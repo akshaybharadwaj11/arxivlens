@@ -11,8 +11,6 @@ from __future__ import annotations
 import argparse
 import json
 import time
-from datetime import date, datetime
-from pathlib import Path
 
 import feedparser
 import httpx

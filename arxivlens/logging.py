@@ -1,4 +1,5 @@
 """Structured logging. JSON-formatted in production, pretty in dev."""
+
 import logging
 import os
 import sys

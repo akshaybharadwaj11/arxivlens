@@ -12,6 +12,7 @@ Run modes:
   python -m ingestion.parser --pull --max-papers 5     # pull N from Pub/Sub then exit
   python -m ingestion.parser --subscribe               # legacy streaming (don't use)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -62,6 +63,7 @@ def _release(converter, models) -> None:
     gc.collect()
     try:
         import torch
+
         if hasattr(torch, "cuda") and torch.cuda.is_available():
             torch.cuda.empty_cache()
     except Exception:
@@ -82,9 +84,7 @@ def _truncate_pdf(pdf_bytes: bytes, max_pages: int = MAX_PAGES) -> bytes:
     if len(reader.pages) <= max_pages:
         return pdf_bytes
 
-    log.info("truncating_pdf",
-             original_pages=len(reader.pages),
-             keeping=max_pages)
+    log.info("truncating_pdf", original_pages=len(reader.pages), keeping=max_pages)
 
     writer = pypdf.PdfWriter()
     for page in reader.pages[:max_pages]:
@@ -130,22 +130,24 @@ def _extract_tables(markdown: str) -> list[dict]:
         for row_line in lines[2:]:
             row = [c.strip() for c in row_line.strip("|").split("|")]
             rows.append(row)
-        before = markdown[:m.start()].rstrip().split("\n")
+        before = markdown[: m.start()].rstrip().split("\n")
         caption = before[-1] if before else ""
-        tables.append({
-            "id": f"tbl_{i+1}",
-            "caption": caption[:500],
-            "headers": headers,
-            "rows": rows[:20],
-            "markdown": block,
-        })
+        tables.append(
+            {
+                "id": f"tbl_{i + 1}",
+                "caption": caption[:500],
+                "headers": headers,
+                "rows": rows[:20],
+                "markdown": block,
+            }
+        )
     return tables
 
 
 def _extract_equations(markdown: str) -> list[dict]:
     eqs = []
     for i, m in enumerate(re.finditer(r"\$\$(.+?)\$\$", markdown, re.DOTALL)):
-        eqs.append({"id": f"eq_{i+1}", "latex": m.group(1).strip()})
+        eqs.append({"id": f"eq_{i + 1}", "latex": m.group(1).strip()})
     return eqs
 
 
@@ -179,12 +181,14 @@ def _parse_pdf_with_marker(pdf_bytes: bytes, arxiv_id: str, parsed_bucket) -> di
             parsed_bucket.blob(fig_path).upload_from_string(
                 png_buf.getvalue(), content_type="image/png"
             )
-            figures.append({
-                "id": f"fig_{idx}",
-                "caption": f"Figure {idx}",
-                "context_text": "",
-                "image_uri": f"gs://{parsed_bucket.name}/{fig_path}",
-            })
+            figures.append(
+                {
+                    "id": f"fig_{idx}",
+                    "caption": f"Figure {idx}",
+                    "context_text": "",
+                    "image_uri": f"gs://{parsed_bucket.name}/{fig_path}",
+                }
+            )
             png_buf.close()
             pil_img.close()
 
@@ -246,12 +250,14 @@ def parse_one(arxiv_id: str) -> bool:
         content_type="application/json",
     )
 
-    log.info("parsed",
-             arxiv_id=arxiv_id,
-             sections=len(manifest_core["sections"]),
-             figures=len(manifest_core["figures"]),
-             tables=len(manifest_core["tables"]),
-             equations=len(manifest_core["equations"]))
+    log.info(
+        "parsed",
+        arxiv_id=arxiv_id,
+        sections=len(manifest_core["sections"]),
+        figures=len(manifest_core["figures"]),
+        tables=len(manifest_core["tables"]),
+        equations=len(manifest_core["equations"]),
+    )
 
     publisher = pubsub_v1.PublisherClient()
     topic = publisher.topic_path(cfg.project_id, cfg.embed_topic)
@@ -288,15 +294,13 @@ def pull_and_process(max_papers: int = 5, subscription: str = "arxivlens-dev-par
             arxiv_id = payload["arxiv_id"]
         except Exception as e:
             log.error("bad_message", error=str(e))
-            subscriber.acknowledge(request={"subscription": sub_path,
-                                             "ack_ids": [msg.ack_id]})
+            subscriber.acknowledge(request={"subscription": sub_path, "ack_ids": [msg.ack_id]})
             failed += 1
             continue
 
         ok = parse_one(arxiv_id)
         if ok:
-            subscriber.acknowledge(request={"subscription": sub_path,
-                                             "ack_ids": [msg.ack_id]})
+            subscriber.acknowledge(request={"subscription": sub_path, "ack_ids": [msg.ack_id]})
             processed += 1
         else:
             # Don't ack — let Pub/Sub redeliver
@@ -316,12 +320,15 @@ def pull_and_process(max_papers: int = 5, subscription: str = "arxivlens-dev-par
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--arxiv-id")
-    p.add_argument("--pull", action="store_true",
-                   help="Pull N messages and exit (recommended for Cloud Run jobs)")
-    p.add_argument("--max-papers", type=int, default=5,
-                   help="Max papers to process in --pull mode")
-    p.add_argument("--subscribe", action="store_true",
-                   help="Legacy streaming mode (don't use on Cloud Run)")
+    p.add_argument(
+        "--pull",
+        action="store_true",
+        help="Pull N messages and exit (recommended for Cloud Run jobs)",
+    )
+    p.add_argument("--max-papers", type=int, default=5, help="Max papers to process in --pull mode")
+    p.add_argument(
+        "--subscribe", action="store_true", help="Legacy streaming mode (don't use on Cloud Run)"
+    )
     args = p.parse_args()
 
     if args.arxiv_id:

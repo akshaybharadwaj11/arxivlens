@@ -1,4 +1,5 @@
 """Postgres connection pool used by all services."""
+
 from collections.abc import Iterator
 from contextlib import contextmanager
 

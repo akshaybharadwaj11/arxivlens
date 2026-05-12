@@ -4,6 +4,7 @@ Authenticated via Application Default Credentials (ADC) — no API key needed.
 On Cloud Run / Compute Engine, ADC comes from the attached service account.
 Locally, ADC comes from `gcloud auth application-default login`.
 """
+
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Sequence

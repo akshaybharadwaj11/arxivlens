@@ -8,6 +8,7 @@ Produces:
   - RAG metrics: faithfulness (via NLI verifier)
   - Optional: LLM-as-judge if --llm-judge passed
 """
+
 from __future__ import annotations
 
 import argparse
@@ -89,10 +90,11 @@ def evaluate(golden_path: Path, top_k: int = 10) -> dict:
 
         by_type.setdefault(metrics["query_type"], []).append(metrics)
         per_item_metrics.append(metrics)
-        log.info("evaluated", query=item["query"][:60], **{
-            k: round(v, 3) for k, v in metrics.items()
-            if isinstance(v, float)
-        })
+        log.info(
+            "evaluated",
+            query=item["query"][:60],
+            **{k: round(v, 3) for k, v in metrics.items() if isinstance(v, float)},
+        )
 
     # Aggregates
     def avg(items: list[dict], key: str) -> float:

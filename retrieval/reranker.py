@@ -2,6 +2,7 @@
 
 Loads on first use. Runs on CPU. ~250ms p95 for 30 pairs.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence

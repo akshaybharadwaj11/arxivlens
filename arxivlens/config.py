@@ -3,6 +3,7 @@
 In Cloud Run, secrets like DB_URL and GEMINI_API_KEY are injected as env vars
 from Secret Manager. Locally, they come from a .env file.
 """
+
 from functools import lru_cache
 
 from pydantic import Field

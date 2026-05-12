@@ -2,6 +2,7 @@
 
 For v1, this is a tiny module. v2: replace with a fine-tuned distilbert classifier.
 """
+
 from __future__ import annotations
 
 import re

@@ -2,6 +2,7 @@
 
 Uses an NLI cross-encoder. Model loads lazily.
 """
+
 from __future__ import annotations
 
 import re
@@ -46,7 +47,6 @@ def split_sentences(text: str) -> list[str]:
     return [p for p in parts if p]
 
 
-
 def _strip_math(s: str) -> str:
     """Remove LaTeX/code so NLI model is not confused by formulas."""
     # Remove citation tags like [2604.22709, 8:1] or [2604.22709:8:1]
@@ -59,10 +59,11 @@ def _strip_math(s: str) -> str:
     s = re.sub(r"`[^`]+`", "VAR", s)
     return s.strip()
 
-def _focused_evidence(claim: str, cited_ids: list[str],
-                      chunk_lookup: dict) -> str:
+
+def _focused_evidence(claim: str, cited_ids: list[str], chunk_lookup: dict) -> str:
     """Return the most relevant 800 chars from each cited chunk."""
     import re
+
     # Word-overlap ranking — cheap and effective for sentence selection
     claim_terms = set(re.findall(r"\w{4,}", claim.lower()))
 
@@ -76,16 +77,20 @@ def _focused_evidence(claim: str, cited_ids: list[str],
         parts = re.split(r"(?<=[.!?])\s+|\n\n", content)
         scored = [
             (len(claim_terms & set(re.findall(r"\w{4,}", p.lower()))), p)
-            for p in parts if len(p.strip()) > 20
+            for p in parts
+            if len(p.strip()) > 20
         ]
         scored.sort(reverse=True)
         # Take top-3 best-matching parts, max 800 chars total
         top = " ".join(p for _, p in scored[:3])[:800]
         if top:
             bits.append(top)
-    return "\n".join(bits) if bits else "\n".join(
-        chunk_lookup[c].content[:600] for c in cited_ids if c in chunk_lookup
+    return (
+        "\n".join(bits)
+        if bits
+        else "\n".join(chunk_lookup[c].content[:600] for c in cited_ids if c in chunk_lookup)
     )
+
 
 def verify_answer(
     answer: str,
@@ -112,35 +117,46 @@ def verify_answer(
                 if m not in cited_ids:
                     cited_ids.append(m)
         if not cited_ids:
-            results.append(VerifiedSentence(
-                sentence=sent, citation_chunk_ids=[],
-                entailment_score=0.0, supported=False,
-            ))
+            results.append(
+                VerifiedSentence(
+                    sentence=sent,
+                    citation_chunk_ids=[],
+                    entailment_score=0.0,
+                    supported=False,
+                )
+            )
             continue
 
         # Score against the union of cited chunks
         """evidence = _focused_evidence(sent, cited_ids, chunk_lookup)"""
         evidence = _focused_evidence(sent, cited_ids, chunk_lookup)
         if not evidence:
-            results.append(VerifiedSentence(
-                sentence=sent, citation_chunk_ids=cited_ids,
-                entailment_score=0.0, supported=False,
-            ))
+            results.append(
+                VerifiedSentence(
+                    sentence=sent,
+                    citation_chunk_ids=cited_ids,
+                    entailment_score=0.0,
+                    supported=False,
+                )
+            )
             continue
 
         # Cross-encoder NLI: returns logits for [contradiction, entailment, neutral]
         logits = nli.predict([(_strip_math(evidence), _strip_math(sent))])
         # Softmax-y normalization → entailment probability
         import numpy as np
+
         scores = np.exp(logits[0]) / np.exp(logits[0]).sum()
         entail = float(scores[1])
 
-        results.append(VerifiedSentence(
-            sentence=sent,
-            citation_chunk_ids=cited_ids,
-            entailment_score=entail,
-            supported=entail >= threshold,
-        ))
+        results.append(
+            VerifiedSentence(
+                sentence=sent,
+                citation_chunk_ids=cited_ids,
+                entailment_score=entail,
+                supported=entail >= threshold,
+            )
+        )
 
     log.info(
         "verified",

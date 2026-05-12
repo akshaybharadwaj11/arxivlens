@@ -1,4 +1,5 @@
 """Smoke tests that don't require GCP."""
+
 from safety.input_guard import check_input
 from safety.verifier import CITATION_RE, split_sentences
 

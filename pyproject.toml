@@ -27,16 +27,16 @@ dependencies = [
     "opentelemetry-exporter-gcp-trace>=1.7.0",
 ]
 
-parser = [
-    "marker-pdf>=0.3.0",
-]
-
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
     "ruff>=0.6.0",
     "mypy>=1.11.0",
+]
+# moved out of [project] — extras must live under [project.optional-dependencies]
+parser = [
+    "marker-pdf>=0.3.0",
 ]
 
 [build-system]
@@ -65,4 +65,3 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-

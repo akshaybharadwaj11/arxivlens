@@ -3,23 +3,24 @@ FROM python:3.11-slim AS base
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1
 WORKDIR /app
 
-# System deps for psycopg, sentence-transformers
+# System deps for psycopg + sentence-transformers
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential libpq-dev curl \
  && rm -rf /var/lib/apt/lists/*
 
-# Python deps
-COPY pyproject.toml .
-RUN pip install --upgrade pip && pip install -e ".[dev]" --no-deps && \
-    pip install fastapi 'uvicorn[standard]' pydantic pydantic-settings \
-                psycopg[binary,pool] google-cloud-storage google-cloud-pubsub \
-                google-cloud-aiplatform google-genai vertexai anthropic \
-                httpx structlog sentence-transformers numpy Pillow \
-                opentelemetry-api opentelemetry-sdk \
-                opentelemetry-instrumentation-fastapi \
-                opentelemetry-exporter-gcp-trace
+# Python deps — installed first so they cache when only code changes
+RUN pip install --upgrade pip && \
+    pip install \
+      fastapi 'uvicorn[standard]' pydantic pydantic-settings \
+      'psycopg[binary,pool]' \
+      google-cloud-storage google-cloud-pubsub \
+      google-cloud-aiplatform vertexai \
+      httpx structlog sentence-transformers numpy Pillow \
+      opentelemetry-api opentelemetry-sdk \
+      opentelemetry-instrumentation-fastapi \
+      opentelemetry-exporter-gcp-trace
 
-# App code
+# App code — copied after deps so code changes don't bust the install layer
 COPY arxivlens ./arxivlens
 COPY retrieval ./retrieval
 COPY generation ./generation

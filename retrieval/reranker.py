@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from sentence_transformers import CrossEncoder
 
 from arxivlens.config import settings
 from arxivlens.logging import get_logger

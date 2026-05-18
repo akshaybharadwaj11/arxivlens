@@ -9,7 +9,6 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from sentence_transformers import CrossEncoder
 
 from arxivlens.config import settings
 from arxivlens.logging import get_logger

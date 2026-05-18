@@ -145,6 +145,7 @@ def verify_answer(
         # Earlier experiments showed _strip_math destroyed lexical signal
         # (numbers in the claim, FORMULA token in evidence).
         import re as _re
+
         sent_clean = _re.sub(r"\[\d{4}\.\d{4,5}[^\]]*\]", "", sent).strip()
         logits = nli.predict([(evidence, sent_clean)])
         # Softmax-y normalization → entailment probability

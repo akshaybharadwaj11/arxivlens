@@ -222,3 +222,4 @@ infra/terraform/**/terraform.tfstate
 infra/terraform/**/terraform.tfstate.backup
 infra/terraform/**/*.tfvars
 !infra/terraform/**/*.tfvars.example
+.deploy-state

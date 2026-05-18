@@ -3,7 +3,7 @@
 In Cloud Run, secrets like DB_URL and GEMINI_API_KEY are injected as env vars
 from Secret Manager. Locally, they come from a .env file.
 """
-import os
+
 from functools import lru_cache
 
 from pydantic import Field
@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # GCP
-    project_id: str = Field(..., alias="PROJECT_ID")
+    project_id: str = Field(default="", alias="PROJECT_ID")
     region: str = Field(default="us-central1", alias="REGION")
     env: str = Field(default="dev", alias="ENV")
 

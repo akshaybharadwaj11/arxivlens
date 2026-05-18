@@ -5,16 +5,16 @@ Run modes:
   Subscriber:      python -m embedding.embedder --subscribe
   Backfill all:    python -m embedding.embedder --backfill
 """
+
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
 import sys
-from typing import Iterator
+from collections.abc import Iterator
 
 from google.cloud import aiplatform, pubsub_v1, storage
-from google.cloud.aiplatform.gapic.schema import predict
 from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
 
 from arxivlens.config import settings
@@ -64,7 +64,7 @@ def chunk_text(text: str, max_tokens: int = 500, overlap_tokens: int = 50) -> li
         boundary = text.rfind(". ", start, end)
         if boundary == -1 or boundary < start + max_chars // 2:
             boundary = end
-        chunks.append(text[start:boundary + 1])
+        chunks.append(text[start : boundary + 1])
         start = boundary + 1 - overlap_chars
     return chunks
 
@@ -154,21 +154,23 @@ def upsert_paper(manifest: dict) -> None:
 
 def upsert_chunks(chunks: list[dict], embeddings: list[list[float]]) -> None:
     rows = []
-    for ch, emb in zip(chunks, embeddings):
+    for ch, emb in zip(chunks, embeddings, strict=False):
         ch_hash = hashlib.sha256(ch["content"].encode()).hexdigest()
-        rows.append((
-            ch["chunk_id"],
-            ch["arxiv_id"],
-            ch["modality"],
-            ch["section"],
-            ch["content"],
-            emb,
-            json.dumps(ch["metadata"]),
-            ch_hash,
-            ch["image_uri"],
-            ch["table_headers"],
-            ch["table_first_rows"],
-        ))
+        rows.append(
+            (
+                ch["chunk_id"],
+                ch["arxiv_id"],
+                ch["modality"],
+                ch["section"],
+                ch["content"],
+                emb,
+                json.dumps(ch["metadata"]),
+                ch_hash,
+                ch["image_uri"],
+                ch["table_headers"],
+                ch["table_first_rows"],
+            )
+        )
 
     with conn() as c, c.cursor() as cur:
         cur.executemany(
@@ -207,7 +209,7 @@ def embed_one(arxiv_id: str) -> bool:
     # Embed in batches of 250
     BATCH = 5
     for i in range(0, len(chunks), BATCH):
-        batch = chunks[i:i + BATCH]
+        batch = chunks[i : i + BATCH]
         texts = [c["content"][:7000] for c in batch]  # 8k char limit
         embeddings = embed_batch(texts)
         upsert_chunks(batch, embeddings)

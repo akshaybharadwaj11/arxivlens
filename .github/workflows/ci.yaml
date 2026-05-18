@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install slim deps
+        run: |
+          pip install --upgrade pip
+          pip install \
+            fastapi 'uvicorn[standard]' pydantic pydantic-settings \
+            'psycopg[binary,pool]' \
+            google-cloud-storage google-cloud-pubsub \
+            google-cloud-aiplatform vertexai \
+            httpx feedparser structlog numpy Pillow \
+            pytest pytest-asyncio ruff
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest tests/test_smoke.py -xvs

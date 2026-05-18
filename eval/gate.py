@@ -3,6 +3,7 @@
 Run in CI:
   python -m eval.gate --current eval/results.json --baseline eval/baseline.json
 """
+
 from __future__ import annotations
 
 import argparse

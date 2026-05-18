@@ -1,7 +1,7 @@
 """Smoke tests that don't require GCP."""
-import pytest
+
 from safety.input_guard import check_input
-from safety.verifier import split_sentences, CITATION_RE
+from safety.verifier import CITATION_RE_BARE, CITATION_RE_COMMA, split_sentences
 
 
 def test_input_guard_empty():
@@ -26,10 +26,21 @@ def test_split_sentences():
     assert len(parts) == 3
 
 
-def test_citation_regex():
+def test_citation_regex_comma():
     sent = "FlashAttention achieves 2x speedup [2205.14135, 2205.14135:3:0]."
-    matches = CITATION_RE.findall(sent)
+    matches = CITATION_RE_COMMA.findall(sent)
     assert len(matches) == 1
     arxiv_id, chunk_id = matches[0]
     assert arxiv_id.strip() == "2205.14135"
     assert chunk_id.strip() == "2205.14135:3:0"
+
+
+def test_citation_regex_bare():
+    sent = "FlashAttention achieves 2x speedup [2205.14135:3:0]."
+    # Find content inside brackets, then extract chunk ids
+    import re
+
+    inside = re.findall(r"\[([^\]]+)\]", sent)
+    assert len(inside) == 1
+    ids = CITATION_RE_BARE.findall(inside[0])
+    assert "2205.14135:3:0" in ids

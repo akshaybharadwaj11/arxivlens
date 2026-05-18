@@ -3,16 +3,18 @@
 The whole hybrid search runs as a single Postgres query for v1 — pgvector + tsvector
 in the same table makes this clean. Metadata pre-filter is a WHERE clause.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
+from vertexai.language_models import TextEmbeddingInput
+
 from arxivlens.config import settings
 from arxivlens.db import conn
 from arxivlens.logging import get_logger
 from embedding.embedder import get_model
-from vertexai.language_models import TextEmbeddingInput
 
 log = get_logger("retriever")
 
@@ -123,9 +125,12 @@ def hybrid_search(
     #   sparse query (×2), sparse filter,
     #   figure_boost, top_k
     params = [
-        embedding, *filter_params,
         embedding,
-        query, query, *filter_params,
+        *filter_params,
+        embedding,
+        query,
+        query,
+        *filter_params,
         figure_boost,
         top_k,
     ]

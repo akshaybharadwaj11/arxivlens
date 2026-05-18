@@ -2,11 +2,15 @@
 
 Loads on first use. Runs on CPU. ~250ms p95 for 30 pairs.
 """
+
 from __future__ import annotations
 
-from typing import Sequence
+from typing import TYPE_CHECKING
 
-from sentence_transformers import CrossEncoder
+if TYPE_CHECKING:
+    from sentence_transformers import CrossEncoder
+
+from collections.abc import Sequence
 
 from arxivlens.config import settings
 from arxivlens.logging import get_logger

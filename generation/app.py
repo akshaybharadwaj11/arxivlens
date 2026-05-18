@@ -5,6 +5,7 @@ Endpoints:
   POST /retrieve       — hybrid search only (debugging/eval)
   POST /chat           — full RAG: retrieve + rerank + generate + verify (streaming SSE)
 """
+
 from __future__ import annotations
 
 import json
@@ -15,7 +16,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from arxivlens.db import conn
 from arxivlens.logging import get_logger, setup_logging
@@ -23,7 +24,7 @@ from generation.generator import generate_stream
 from retrieval.hybrid import hybrid_search
 from retrieval.reranker import rerank
 from safety.input_guard import check_input
-from safety.verifier import verify_answer, faithfulness_score
+from safety.verifier import faithfulness_score, verify_answer
 
 setup_logging()
 log = get_logger("api")
@@ -95,20 +96,23 @@ async def chat_endpoint(req: ChatRequest) -> StreamingResponse:
         candidates = hybrid_search(req.query, req.filters, top_k=30)
         top = rerank(req.query, candidates, top_k=req.top_k)
 
-        yield _sse("chunks", {
-            "query_id": query_id,
-            "chunks": [
-                {
-                    "chunk_id": c.chunk_id,
-                    "arxiv_id": c.arxiv_id,
-                    "modality": c.modality,
-                    "section": c.section,
-                    "content_preview": c.content[:300],
-                    "image_uri": c.image_uri,
-                }
-                for c in top
-            ],
-        })
+        yield _sse(
+            "chunks",
+            {
+                "query_id": query_id,
+                "chunks": [
+                    {
+                        "chunk_id": c.chunk_id,
+                        "arxiv_id": c.arxiv_id,
+                        "modality": c.modality,
+                        "section": c.section,
+                        "content_preview": c.content[:300],
+                        "image_uri": c.image_uri,
+                    }
+                    for c in top
+                ],
+            },
+        )
 
         # 2. Generate (stream)
         full_answer_parts: list[str] = []
@@ -122,18 +126,21 @@ async def chat_endpoint(req: ChatRequest) -> StreamingResponse:
         verifications = verify_answer(full_answer, top)
         faith = faithfulness_score(verifications)
 
-        yield _sse("verification", {
-            "faithfulness": faith,
-            "sentences": [
-                {
-                    "sentence": v.sentence,
-                    "citation_chunk_ids": v.citation_chunk_ids,
-                    "entailment_score": v.entailment_score,
-                    "supported": v.supported,
-                }
-                for v in verifications
-            ],
-        })
+        yield _sse(
+            "verification",
+            {
+                "faithfulness": faith,
+                "sentences": [
+                    {
+                        "sentence": v.sentence,
+                        "citation_chunk_ids": v.citation_chunk_ids,
+                        "entailment_score": v.entailment_score,
+                        "supported": v.supported,
+                    }
+                    for v in verifications
+                ],
+            },
+        )
 
         # 4. Log to Postgres
         latency = int((time.perf_counter() - started) * 1000)

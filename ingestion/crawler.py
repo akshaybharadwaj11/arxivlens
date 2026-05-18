@@ -6,13 +6,12 @@ Usage:
 For a smoke test, run with --max-papers 100 (~5 min).
 For the real ingest, scale to 5000 papers (~2 hours).
 """
+
 from __future__ import annotations
 
 import argparse
 import json
 import time
-from datetime import date, datetime
-from pathlib import Path
 
 import feedparser
 import httpx
@@ -54,15 +53,17 @@ def fetch_arxiv_batch(
         )
         if not pdf_url:
             continue
-        papers.append({
-            "arxiv_id": arxiv_id,
-            "title": entry.title.strip().replace("\n", " "),
-            "authors": [a.name for a in entry.authors],
-            "primary_category": entry.tags[0]["term"] if entry.tags else "unknown",
-            "published": entry.published[:10],
-            "abstract": entry.summary.strip().replace("\n", " "),
-            "pdf_url": pdf_url,
-        })
+        papers.append(
+            {
+                "arxiv_id": arxiv_id,
+                "title": entry.title.strip().replace("\n", " "),
+                "authors": [a.name for a in entry.authors],
+                "primary_category": entry.tags[0]["term"] if entry.tags else "unknown",
+                "published": entry.published[:10],
+                "abstract": entry.summary.strip().replace("\n", " "),
+                "pdf_url": pdf_url,
+            }
+        )
     return papers
 
 

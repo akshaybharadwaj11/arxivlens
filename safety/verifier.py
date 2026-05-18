@@ -128,7 +128,6 @@ def verify_answer(
             continue
 
         # Score against the union of cited chunks
-        """evidence = _focused_evidence(sent, cited_ids, chunk_lookup)"""
         evidence = _focused_evidence(sent, cited_ids, chunk_lookup)
         if not evidence:
             results.append(
@@ -142,7 +141,12 @@ def verify_answer(
             continue
 
         # Cross-encoder NLI: returns logits for [contradiction, entailment, neutral]
-        logits = nli.predict([(_strip_math(evidence), _strip_math(sent))])
+        # Strip citations from the claim only — math notation stays.
+        # Earlier experiments showed _strip_math destroyed lexical signal
+        # (numbers in the claim, FORMULA token in evidence).
+        import re as _re
+        sent_clean = _re.sub(r"\[\d{4}\.\d{4,5}[^\]]*\]", "", sent).strip()
+        logits = nli.predict([(evidence, sent_clean)])
         # Softmax-y normalization → entailment probability
         import numpy as np
 

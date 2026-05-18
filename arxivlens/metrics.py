@@ -11,6 +11,7 @@ These show up in Cloud Monitoring under
 'workload.googleapis.com/<metric>' and can be queried via MQL or chart
 in the dashboard.
 """
+
 from __future__ import annotations
 
 import os
@@ -24,15 +25,15 @@ if TYPE_CHECKING:
 
 log = get_logger("metrics")
 
-_meter: "Meter | None" = None
+_meter: Meter | None = None
 _initialized = False
 
 # Module-level so tests/CI can import without setup
-_request_counter: "Counter | None" = None
-_faithfulness_hist: "Histogram | None" = None
-_latency_hist: "Histogram | None" = None
-_cited_hist: "Histogram | None" = None
-_supported_hist: "Histogram | None" = None
+_request_counter: Counter | None = None
+_faithfulness_hist: Histogram | None = None
+_latency_hist: Histogram | None = None
+_cited_hist: Histogram | None = None
+_supported_hist: Histogram | None = None
 
 
 def setup_metrics(service_name: str = "arxivlens-api") -> None:
@@ -84,9 +85,7 @@ def setup_metrics(service_name: str = "arxivlens-api") -> None:
             View(instrument_name="otel.sdk.*", aggregation=DropAggregation()),
             View(instrument_name="otel.*", aggregation=DropAggregation()),
         ]
-        provider = MeterProvider(
-            resource=resource, metric_readers=[reader], views=views
-        )
+        provider = MeterProvider(resource=resource, metric_readers=[reader], views=views)
         metrics.set_meter_provider(provider)
         _meter = metrics.get_meter("arxivlens")
 

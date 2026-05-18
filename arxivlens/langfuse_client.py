@@ -10,17 +10,19 @@ The v4 SDK uses start_as_current_observation(as_type=...) and exposes
 scoring on the active span. We wrap that in a stable internal API so
 generation/app.py doesn't change when Langfuse rev's again.
 """
+
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import TYPE_CHECKING, Any
 
 from arxivlens.config import settings
 from arxivlens.logging import get_logger
 
 if TYPE_CHECKING:
-    from langfuse import Langfuse
+    pass
 
 log = get_logger("langfuse_client")
 
@@ -81,7 +83,7 @@ def flush() -> None:
 
 
 @contextmanager
-def trace(name: str, **kwargs: Any) -> Iterator["_LangfuseRequest"]:
+def trace(name: str, **kwargs: Any) -> Iterator[_LangfuseRequest]:
     """Top-level context manager for a single request.
 
     Usage:
@@ -98,9 +100,7 @@ def trace(name: str, **kwargs: Any) -> Iterator["_LangfuseRequest"]:
         from langfuse import get_client
 
         client = get_client()
-        with client.start_as_current_observation(
-            as_type="span", name=name
-        ) as root_span:
+        with client.start_as_current_observation(as_type="span", name=name) as root_span:
             # Stamp the trace itself with input/metadata (v4 pattern)
             try:
                 root_span.update(
@@ -139,9 +139,7 @@ class _LangfuseRequest:
         metadata: dict[str, Any] | None = None,
     ) -> None:
         try:
-            with self._client.start_as_current_observation(
-                as_type="span", name=name
-            ) as s:
+            with self._client.start_as_current_observation(as_type="span", name=name) as s:
                 s.update(input=input, output=output, metadata=metadata or {})
         except Exception as e:
             log.warning("langfuse_span_failed", name=name, error=str(e))
@@ -162,14 +160,10 @@ class _LangfuseRequest:
         except Exception as e:
             log.warning("langfuse_generation_failed", name=name, error=str(e))
 
-    def score(
-        self, name: str, value: float, comment: str | None = None
-    ) -> None:
+    def score(self, name: str, value: float, comment: str | None = None) -> None:
         try:
             # In v4, scoring is a method on the active span/trace
-            self._root.score_trace(
-                name=name, value=value, comment=comment or ""
-            )
+            self._root.score_trace(name=name, value=value, comment=comment or "")
         except Exception as e:
             log.warning("langfuse_score_failed", name=name, error=str(e))
 

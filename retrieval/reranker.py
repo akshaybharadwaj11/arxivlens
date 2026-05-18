@@ -25,6 +25,7 @@ def get_reranker() -> CrossEncoder:
     global _model
     if _model is None:
         from sentence_transformers import CrossEncoder  # runtime import
+
         cfg = settings()
         log.info("loading_reranker", model=cfg.reranker_model)
         _model = CrossEncoder(cfg.reranker_model, max_length=512)

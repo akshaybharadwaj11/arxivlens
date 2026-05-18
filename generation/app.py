@@ -19,15 +19,15 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from arxivlens.db import conn
+from arxivlens.langfuse_client import trace as lf_trace
 from arxivlens.logging import get_logger, setup_logging
+from arxivlens.metrics import record_chat, setup_metrics
 from arxivlens.tracing import get_tracer, instrument_fastapi, setup_tracing
 from generation.generator import generate_stream
 from retrieval.hybrid import hybrid_search
 from retrieval.reranker import rerank
 from safety.input_guard import check_input
 from safety.verifier import faithfulness_score, verify_answer
-from arxivlens.langfuse_client import trace as lf_trace
-from arxivlens.metrics import setup_metrics, record_chat
 
 setup_logging()
 log = get_logger("api")
@@ -113,8 +113,10 @@ async def chat_endpoint(req: ChatRequest) -> StreamingResponse:
         # Two parallel observability streams:
         #   - OTel/Cloud Trace: latency per operation
         #   - Langfuse: full LLM workflow (prompt + chunks + answer + scores)
-        with lf_trace("chat.request", query=req.query[:200], top_k=req.top_k) as lf, \
-            tracer.start_as_current_span("chat.request") as root:
+        with (
+            lf_trace("chat.request", query=req.query[:200], top_k=req.top_k) as lf,
+            tracer.start_as_current_span("chat.request") as root,
+        ):
             root.set_attribute("query", req.query[:200])
             root.set_attribute("top_k", req.top_k)
             root.set_attribute("query_id", query_id)
@@ -197,9 +199,7 @@ async def chat_endpoint(req: ChatRequest) -> StreamingResponse:
                 faith = faithfulness_score(verifications)
                 s.set_attribute("faithfulness", faith)
                 s.set_attribute("n_sentences", len(verifications))
-                s.set_attribute(
-                    "n_supported", sum(1 for v in verifications if v.supported)
-                )
+                s.set_attribute("n_supported", sum(1 for v in verifications if v.supported))
 
             # Langfuse: log faithfulness as a score (their first-class metric type)
             lf.score(
@@ -213,8 +213,11 @@ async def chat_endpoint(req: ChatRequest) -> StreamingResponse:
                 output={
                     "faithfulness": faith,
                     "sentences": [
-                        {"sentence": v.sentence[:200], "supported": v.supported,
-                         "score": v.entailment_score}
+                        {
+                            "sentence": v.sentence[:200],
+                            "supported": v.supported,
+                            "score": v.entailment_score,
+                        }
                         for v in verifications
                     ],
                 },

@@ -31,6 +31,7 @@ def get_nli() -> CrossEncoder:
     global _model
     if _model is None:
         from sentence_transformers import CrossEncoder  # runtime import
+
         cfg = settings()
         # nli-deberta-v3-base outputs (contradiction, entailment, neutral) logits
         _model = CrossEncoder(cfg.nli_model, max_length=512)

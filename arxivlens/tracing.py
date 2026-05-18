@@ -7,6 +7,7 @@ In production (GCP), traces appear in Cloud Trace within ~30s of the request.
 Locally, traces still get exported if ADC is configured for a project — but
 you can also set OTEL_TRACES_EXPORTER=none to disable export entirely.
 """
+
 from __future__ import annotations
 
 import os
@@ -65,7 +66,7 @@ def setup_tracing(service_name: str = "arxivlens-api") -> None:
     _initialized = True
 
 
-def get_tracer(name: str) -> "Tracer":
+def get_tracer(name: str) -> Tracer:
     """Get a tracer for the given module name."""
     from opentelemetry import trace
 

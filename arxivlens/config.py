@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # API keys (loaded from Secret Manager in prod, .env locally)
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
+    langfuse_public_key: str = Field(default="", alias="LANGFUSE_PUBLIC_KEY")
+    langfuse_secret_key: str = Field(default="", alias="LANGFUSE_SECRET_KEY")
+    langfuse_host: str = Field(default="https://us.cloud.langfuse.com", alias="LANGFUSE_HOST")
 
     # Models
     embedding_model: str = "text-embedding-005"

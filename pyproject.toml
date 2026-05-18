@@ -25,6 +25,7 @@ dependencies = [
     "opentelemetry-sdk>=1.27.0",
     "opentelemetry-instrumentation-fastapi>=0.48b0",
     "opentelemetry-exporter-gcp-trace>=1.7.0",
+    "langfuse>=2.0.0",
 ]
 
 [project.optional-dependencies]

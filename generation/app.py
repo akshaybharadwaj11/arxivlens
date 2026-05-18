@@ -26,6 +26,7 @@ from retrieval.hybrid import hybrid_search
 from retrieval.reranker import rerank
 from safety.input_guard import check_input
 from safety.verifier import faithfulness_score, verify_answer
+from arxivlens.langfuse_client import trace as lf_trace
 
 setup_logging()
 log = get_logger("api")
@@ -107,8 +108,11 @@ async def chat_endpoint(req: ChatRequest) -> StreamingResponse:
     started = time.perf_counter()
 
     async def event_stream():
-        # ENTIRE request lives inside the root span so children nest correctly
-        with tracer.start_as_current_span("chat.request") as root:
+        # Two parallel observability streams:
+        #   - OTel/Cloud Trace: latency per operation
+        #   - Langfuse: full LLM workflow (prompt + chunks + answer + scores)
+        with lf_trace("chat.request", query=req.query[:200], top_k=req.top_k) as lf, \
+            tracer.start_as_current_span("chat.request") as root:
             root.set_attribute("query", req.query[:200])
             root.set_attribute("top_k", req.top_k)
             root.set_attribute("query_id", query_id)
@@ -122,6 +126,25 @@ async def chat_endpoint(req: ChatRequest) -> StreamingResponse:
             with tracer.start_as_current_span("retrieve.rerank") as s:
                 top = rerank(req.query, candidates, top_k=req.top_k)
                 s.set_attribute("n_results", len(top))
+
+            # Log retrieval to Langfuse as a span
+            lf.span(
+                name="retrieve",
+                input={"query": req.query, "filters": req.filters},
+                output={
+                    "chunks": [
+                        {
+                            "chunk_id": c.chunk_id,
+                            "modality": c.modality,
+                            "section": c.section,
+                            "rrf_score": c.rrf_score,
+                        }
+                        for c in top
+                    ],
+                    "n_results": len(top),
+                },
+                metadata={"n_candidates": len(candidates)},
+            )
 
             # Emit chunks first so the UI can render them while tokens stream
             yield _sse(
@@ -142,7 +165,7 @@ async def chat_endpoint(req: ChatRequest) -> StreamingResponse:
                 },
             )
 
-            # 3. Generate (stream) — ONE CALL, tokens collected as they flow
+            # 3. Generate (one call; tokens streamed and collected)
             full_answer_parts: list[str] = []
             with tracer.start_as_current_span("generate.stream") as s:
                 async for token in generate_stream(req.query, top):
@@ -151,6 +174,20 @@ async def chat_endpoint(req: ChatRequest) -> StreamingResponse:
                 s.set_attribute("answer_chars", sum(len(t) for t in full_answer_parts))
 
             full_answer = "".join(full_answer_parts)
+
+            # Log generation to Langfuse — this is where they shine. Full prompt
+            # context, model, output, all clickable in their UI.
+            lf.generation(
+                name="gemini.generate",
+                model="gemini-2.5-flash",
+                input={
+                    "query": req.query,
+                    "n_chunks": len(top),
+                    "chunk_ids": [c.chunk_id for c in top],
+                },
+                output=full_answer,
+                metadata={"streaming": True},
+            )
 
             # 4. Verify
             with tracer.start_as_current_span("verify.nli") as s:
@@ -161,6 +198,25 @@ async def chat_endpoint(req: ChatRequest) -> StreamingResponse:
                 s.set_attribute(
                     "n_supported", sum(1 for v in verifications if v.supported)
                 )
+
+            # Langfuse: log faithfulness as a score (their first-class metric type)
+            lf.score(
+                name="faithfulness",
+                value=faith,
+                comment=f"{sum(1 for v in verifications if v.supported)}/{len(verifications)} sentences supported",
+            )
+            lf.span(
+                name="verify",
+                input={"answer": full_answer},
+                output={
+                    "faithfulness": faith,
+                    "sentences": [
+                        {"sentence": v.sentence[:200], "supported": v.supported,
+                         "score": v.entailment_score}
+                        for v in verifications
+                    ],
+                },
+            )
 
             yield _sse(
                 "verification",
@@ -178,7 +234,7 @@ async def chat_endpoint(req: ChatRequest) -> StreamingResponse:
                 },
             )
 
-            # 5. Log to Postgres (best-effort; non-fatal if it fails)
+            # 5. Log to Postgres (best-effort)
             latency = int((time.perf_counter() - started) * 1000)
             with tracer.start_as_current_span("log.query"):
                 try:
@@ -206,6 +262,7 @@ async def chat_endpoint(req: ChatRequest) -> StreamingResponse:
 
             root.set_attribute("latency_ms", latency)
             root.set_attribute("faithfulness", faith)
+
             yield _sse("done", {"query_id": query_id, "latency_ms": latency})
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

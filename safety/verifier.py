@@ -5,10 +5,14 @@ Uses an NLI cross-encoder. Model loads lazily.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sentence_transformers import CrossEncoder
+
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-
 
 from arxivlens.config import settings
 from arxivlens.logging import get_logger

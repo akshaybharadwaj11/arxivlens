@@ -22,7 +22,7 @@ gcloud run deploy "${NAME}-api" \
   --service-account="${SA}" \
   --memory=2Gi \
   --cpu=2 \
-  --min-instances=0 \
+  --min-instances=1 \
   --max-instances=3 \
   --timeout=300 \
   --concurrency=20 \
@@ -32,6 +32,7 @@ gcloud run deploy "${NAME}-api" \
   --set-env-vars="EVAL_BUCKET=${NAME}-eval-${PROJECT_ID}" \
   --set-env-vars="PARSE_TOPIC=${NAME}-papers-to-parse" \
   --set-env-vars="EMBED_TOPIC=${NAME}-papers-to-embed" \
+  --add-cloudsql-instances=arxivlens-dev:us-central1:arxivlens-dev-pg \
   --set-secrets="DB_URL=${DB_URL_SECRET}:latest,GEMINI_API_KEY=gemini-api-key:latest" \
   --project="${PROJECT_ID}"
 

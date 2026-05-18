@@ -21,10 +21,25 @@ RUN pip install --upgrade pip && \
       opentelemetry-exporter-gcp-trace
 
 # App code — copied after deps so code changes don't bust the install layer
+# Pre-bake ML models into the image
+ENV HF_HOME=/opt/hf-cache
+ENV HF_HUB_DOWNLOAD_TIMEOUT=900
+RUN mkdir -p /opt/hf-cache && \
+    python -c "\
+from huggingface_hub import snapshot_download; \
+import os; \
+repos = [('BAAI/bge-reranker-v2-m3', None), ('cross-encoder/nli-deberta-v3-base', None)]; \
+[snapshot_download(repo_id=r, cache_dir='/opt/hf-cache', allow_patterns=p, max_workers=4) for r, p in repos]; \
+sz = sum(os.path.getsize(os.path.join(d,f)) for d,_,fs in os.walk('/opt/hf-cache') for f in fs); \
+print(f'Final cache size: {sz/1e9:.2f} GB'); \
+assert sz > 1_400_000_000, f'BAKE FAILED: expected >1.4 GB, got {sz/1e9:.2f} GB'"
+
+
 COPY arxivlens ./arxivlens
 COPY retrieval ./retrieval
 COPY generation ./generation
 COPY safety ./safety
+COPY embedding ./embedding
 
 ENV PORT=8080
 EXPOSE 8080

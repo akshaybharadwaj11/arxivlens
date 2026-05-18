@@ -27,12 +27,14 @@ from retrieval.reranker import rerank
 from safety.input_guard import check_input
 from safety.verifier import faithfulness_score, verify_answer
 from arxivlens.langfuse_client import trace as lf_trace
+from arxivlens.metrics import setup_metrics, record_chat
 
 setup_logging()
 log = get_logger("api")
 
 app = FastAPI(title="ArXivLens", version="0.1.0")
 setup_tracing("arxivlens-api")
+setup_metrics("arxivlens-api")
 instrument_fastapi(app)
 
 tracer = get_tracer(__name__)
@@ -263,6 +265,13 @@ async def chat_endpoint(req: ChatRequest) -> StreamingResponse:
             root.set_attribute("latency_ms", latency)
             root.set_attribute("faithfulness", faith)
 
+            record_chat(
+                faithfulness=faith,
+                latency_ms=latency,
+                n_cited=sum(1 for v in verifications if v.citation_chunk_ids),
+                n_supported=sum(1 for v in verifications if v.supported),
+                status="ok",
+            )
             yield _sse("done", {"query_id": query_id, "latency_ms": latency})
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

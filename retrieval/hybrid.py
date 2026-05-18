@@ -14,9 +14,11 @@ from vertexai.language_models import TextEmbeddingInput
 from arxivlens.config import settings
 from arxivlens.db import conn
 from arxivlens.logging import get_logger
+from arxivlens.tracing import get_tracer
 from embedding.embedder import get_model
 
 log = get_logger("retriever")
+tracer = get_tracer(__name__)
 
 
 @dataclass
@@ -34,9 +36,14 @@ class RetrievedChunk:
 
 
 def embed_query(query: str) -> list[float]:
-    model = get_model()
-    inputs = [TextEmbeddingInput(text=query, task_type="RETRIEVAL_QUERY")]
-    return model.get_embeddings(inputs)[0].values
+    """Embed a query string via Vertex AI. Instrumented for trace visibility."""
+    with tracer.start_as_current_span("embed_query") as s:
+        s.set_attribute("query_chars", len(query))
+        model = get_model()
+        inputs = [TextEmbeddingInput(text=query, task_type="RETRIEVAL_QUERY")]
+        emb = model.get_embeddings(inputs)[0].values
+        s.set_attribute("embedding_dim", len(emb))
+        return emb
 
 
 def _build_filter_clause(filters: dict[str, Any] | None) -> tuple[str, list[Any]]:
@@ -77,88 +84,116 @@ def hybrid_search(
       - sparse: BM25-style ts_rank ranking
       - fused: RRF combination
     """
-    cfg = settings()
-    embedding = embed_query(query)
-    filter_sql, filter_params = _build_filter_clause(filters)
+    with tracer.start_as_current_span("hybrid_search") as root:
+        root.set_attribute("query", query[:200])
+        root.set_attribute("top_k", top_k)
+        root.set_attribute("figure_boost", figure_boost)
+        if filters:
+            # Each filter key/value becomes a separate attribute for filtering
+            # in Cloud Trace ("show me traces with filter.modality=figure")
+            for k, v in filters.items():
+                root.set_attribute(f"filter.{k}", str(v)[:80])
 
-    sql = f"""
-    WITH
-    dense AS (
-      SELECT chunk_id,
-             ROW_NUMBER() OVER (ORDER BY embedding <=> %s::vector) AS rnk
-      FROM chunks
-      WHERE 1=1 {filter_sql}
-      ORDER BY embedding <=> %s::vector
-      LIMIT {cfg.top_k_dense}
-    ),
-    sparse AS (
-      SELECT chunk_id,
-             ROW_NUMBER() OVER (
-               ORDER BY ts_rank(content_tsv, plainto_tsquery('english', %s)) DESC
-             ) AS rnk
-      FROM chunks
-      WHERE content_tsv @@ plainto_tsquery('english', %s) {filter_sql}
-      LIMIT {cfg.top_k_sparse}
-    ),
-    fused AS (
-      SELECT COALESCE(d.chunk_id, s.chunk_id) AS chunk_id,
-             d.rnk AS dense_rank,
-             s.rnk AS sparse_rank,
-             COALESCE(1.0 / ({cfg.rrf_k} + d.rnk), 0)
-             + COALESCE(1.0 / ({cfg.rrf_k} + s.rnk), 0) AS rrf_score
-      FROM dense d
-      FULL OUTER JOIN sparse s USING (chunk_id)
-    )
-    SELECT
-      c.chunk_id, c.arxiv_id, c.modality, c.section, c.content,
-      c.image_uri, c.metadata,
-      f.dense_rank, f.sparse_rank,
-      f.rrf_score + CASE WHEN c.modality = 'figure' THEN %s ELSE 0 END AS final_score
-    FROM fused f
-    JOIN chunks c USING (chunk_id)
-    ORDER BY final_score DESC
-    LIMIT %s
-    """
+        cfg = settings()
 
-    # Param order matches placeholder order:
-    #   dense embedding, dense filter, dense ORDER BY embedding,
-    #   sparse query (×2), sparse filter,
-    #   figure_boost, top_k
-    params = [
-        embedding,
-        *filter_params,
-        embedding,
-        query,
-        query,
-        *filter_params,
-        figure_boost,
-        top_k,
-    ]
+        # Embedding lives in its own nested span (set in embed_query itself).
+        embedding = embed_query(query)
+        filter_sql, filter_params = _build_filter_clause(filters)
 
-    with conn() as c, c.cursor() as cur:
-        cur.execute(sql, params)
-        rows = cur.fetchall()
-
-    results = [
-        RetrievedChunk(
-            chunk_id=r[0],
-            arxiv_id=r[1],
-            modality=r[2],
-            section=r[3],
-            content=r[4],
-            image_uri=r[5],
-            metadata=r[6] or {},
-            dense_rank=r[7],
-            sparse_rank=r[8],
-            rrf_score=float(r[9]),
+        sql = f"""
+        WITH
+        dense AS (
+          SELECT chunk_id,
+                 ROW_NUMBER() OVER (ORDER BY embedding <=> %s::vector) AS rnk
+          FROM chunks
+          WHERE 1=1 {filter_sql}
+          ORDER BY embedding <=> %s::vector
+          LIMIT {cfg.top_k_dense}
+        ),
+        sparse AS (
+          SELECT chunk_id,
+                 ROW_NUMBER() OVER (
+                   ORDER BY ts_rank(content_tsv, plainto_tsquery('english', %s)) DESC
+                 ) AS rnk
+          FROM chunks
+          WHERE content_tsv @@ plainto_tsquery('english', %s) {filter_sql}
+          LIMIT {cfg.top_k_sparse}
+        ),
+        fused AS (
+          SELECT COALESCE(d.chunk_id, s.chunk_id) AS chunk_id,
+                 d.rnk AS dense_rank,
+                 s.rnk AS sparse_rank,
+                 COALESCE(1.0 / ({cfg.rrf_k} + d.rnk), 0)
+                 + COALESCE(1.0 / ({cfg.rrf_k} + s.rnk), 0) AS rrf_score
+          FROM dense d
+          FULL OUTER JOIN sparse s USING (chunk_id)
         )
-        for r in rows
-    ]
+        SELECT
+          c.chunk_id, c.arxiv_id, c.modality, c.section, c.content,
+          c.image_uri, c.metadata,
+          f.dense_rank, f.sparse_rank,
+          f.rrf_score + CASE WHEN c.modality = 'figure' THEN %s ELSE 0 END AS final_score
+        FROM fused f
+        JOIN chunks c USING (chunk_id)
+        ORDER BY final_score DESC
+        LIMIT %s
+        """
 
-    log.info(
-        "hybrid_search",
-        query=query[:80],
-        n_results=len(results),
-        filters=filters,
-    )
-    return results
+        # Param order matches placeholder order:
+        #   dense embedding, dense filter, dense ORDER BY embedding,
+        #   sparse query (×2), sparse filter,
+        #   figure_boost, top_k
+        params = [
+            embedding,
+            *filter_params,
+            embedding,
+            query,
+            query,
+            *filter_params,
+            figure_boost,
+            top_k,
+        ]
+
+        # SQL execution gets its own span so DB latency is visible separately
+        # from embedding latency in the flame graph.
+        with tracer.start_as_current_span("hybrid_search.sql") as s:
+            s.set_attribute("top_k_dense", cfg.top_k_dense)
+            s.set_attribute("top_k_sparse", cfg.top_k_sparse)
+            s.set_attribute("rrf_k", cfg.rrf_k)
+            with conn() as c, c.cursor() as cur:
+                cur.execute(sql, params)
+                rows = cur.fetchall()
+            s.set_attribute("rows_returned", len(rows))
+
+        results = [
+            RetrievedChunk(
+                chunk_id=r[0],
+                arxiv_id=r[1],
+                modality=r[2],
+                section=r[3],
+                content=r[4],
+                image_uri=r[5],
+                metadata=r[6] or {},
+                dense_rank=r[7],
+                sparse_rank=r[8],
+                rrf_score=float(r[9]),
+            )
+            for r in rows
+        ]
+
+        # Final-result attributes on the parent span so the flame graph header
+        # surfaces "n_results=5" without expanding the children.
+        root.set_attribute("n_results", len(results))
+        modality_counts: dict[str, int] = {}
+        for c in results:
+            modality_counts[c.modality] = modality_counts.get(c.modality, 0) + 1
+        for mod, count in modality_counts.items():
+            root.set_attribute(f"results.{mod}", count)
+
+        log.info(
+            "hybrid_search",
+            query=query[:80],
+            n_results=len(results),
+            filters=filters,
+        )
+        return results

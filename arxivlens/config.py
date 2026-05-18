@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # GCP
-    project_id: str = Field(..., alias="PROJECT_ID")
+    project_id: str = Field(default="", alias="PROJECT_ID")
     region: str = Field(default="us-central1", alias="REGION")
     env: str = Field(default="dev", alias="ENV")
 
